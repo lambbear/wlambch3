@@ -13,8 +13,9 @@ mod context;
 mod switch;
 
 #[allow(clippy::module_inception)]
-mod task;
+pub mod task;  // 加上pub就让其他目录的.rs文件访问到task模块下task.rs
 
+//#[deny(warnings)]
 use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sbi::shutdown;
@@ -25,6 +26,12 @@ use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 
+///hy
+//use crate::timer::{get_time,get_time_ms};
+use crate::timer::{get_time};
+use crate::syscall::taInfo::SyscallInfo;
+use crate::syscall::taInfo::MAX_SYSCALL_NUM;
+
 /// The task manager, where all the tasks are managed.
 ///
 /// Functions implemented on `TaskManager` deals with all task state transitions
@@ -34,19 +41,21 @@ pub use context::TaskContext;
 /// Most of `TaskManager` are hidden behind the field `inner`, to defer
 /// borrowing checks to runtime. You can see examples on how to use `inner` in
 /// existing functions on `TaskManager`.
+
+///hy:任务管理器内部成员pub
 pub struct TaskManager {
     /// total number of tasks
-    num_app: usize,
+    pub num_app: usize,
     /// use inner value to get mutable access
-    inner: UPSafeCell<TaskManagerInner>,
+    pub inner: UPSafeCell<TaskManagerInner>,
 }
 
 /// Inner of Task Manager
 pub struct TaskManagerInner {
     /// task list
-    tasks: [TaskControlBlock; MAX_APP_NUM],
+    pub tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
-    current_task: usize,
+    pub current_task: usize,
 }
 
 lazy_static! {
@@ -56,6 +65,12 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            //hy
+            task_begin:0,
+            task_stop :0,
+            task_continue : 0,
+            sys_statistics: [SyscallInfo{sysid :666666666,times :0};MAX_SYSCALL_NUM],
+            id:0,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -82,6 +97,13 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
+        
+        //hy:增添task新增控制信息的初始化
+        task0.task_begin = get_time();
+        task0.id = 0;
+        task0.task_continue = 0;
+        task0.task_stop = get_time();
+        
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -97,6 +119,11 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Ready;
+        //hy：增添运行时间更新
+         /*let x = get_time();
+         
+        inner.tasks[current].task_continue += x - inner.tasks[current].task_stop;
+        inner.tasks[current].task_stop = x;*/
     }
 
     /// Change the status of current `Running` task into `Exited`.
@@ -104,6 +131,10 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Exited;
+        //hy
+        /*let x = get_time();
+        inner.tasks[current].task_continue += x - inner.tasks[current].task_stop;
+        inner.tasks[current].task_stop = x;*/
     }
 
     /// Find next task to run and return task id.
@@ -125,6 +156,15 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
+            
+            //hy:从退出到切换成功的时间也算入总运行时长。？
+            let x = get_time();
+            inner.tasks[current].task_continue += x - inner.tasks[current].task_stop ;
+            inner.tasks[current].task_stop = x;
+            
+            inner.tasks[next].task_stop = x;
+            inner.tasks[next].id = next;
+            
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);

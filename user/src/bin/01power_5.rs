@@ -3,11 +3,18 @@
 
 #[macro_use]
 extern crate user_lib;
-
+use user_lib::{get_time};
 const LEN: usize = 100;
+use user_lib::logging;
+use log::*;
 
 #[no_mangle]
 fn main() -> i32 {
+    //hy
+    logging::init();
+    let appbegin = get_time();
+    debug!("the 01_APP start at  {}ms on user",appbegin);
+    
     let p = 5u64;
     let m = 998244353u64;
     let iter: usize = 140000;
@@ -24,5 +31,8 @@ fn main() -> i32 {
     }
     println!("{}^{} = {}(MOD {})", p, iter, s[cur], m);
     println!("Test power_5 OK!");
+    //hy
+    let append = get_time();
+    debug!("the 01_APP end at  {}ms on user",append);
     0
 }

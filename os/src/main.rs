@@ -37,6 +37,7 @@ pub mod syscall;
 pub mod task;
 mod timer;
 pub mod trap;
+mod logging;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
@@ -57,8 +58,16 @@ fn clear_bss() {
 #[no_mangle]
 pub fn rust_main() -> ! {
     clear_bss();
+    //hy
+    use riscv::register::sstatus;
+    use riscv::register::mstatus::FS;
+    unsafe { sstatus::set_fs(FS::Clean) }; // 
+    
     println!("[kernel] Hello, world!");
     trap::init();
+    //hy
+    logging::init();
+    
     loader::load_apps();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();

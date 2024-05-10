@@ -4,8 +4,13 @@
 
 #[macro_use]
 pub mod console;
+//hy
+#[allow(non_snake_case)]
+pub mod taInfo;
+pub mod logging;
+
 mod lang_items;
-mod syscall;
+pub mod syscall;
 
 #[no_mangle]
 #[link_section = ".text.entry"]
@@ -44,4 +49,9 @@ pub fn yield_() -> isize {
 }
 pub fn get_time() -> isize {
     sys_get_time()
+}
+
+//hy封装新增系统调用
+pub fn task_info(tsk:usize) -> isize{
+    sys_task_info(tsk)
 }
